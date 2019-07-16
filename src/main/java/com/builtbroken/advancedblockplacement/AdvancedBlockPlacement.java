@@ -173,6 +173,7 @@ public class AdvancedBlockPlacement {
         hitX = Math.abs(hitX);
         hitY = Math.abs(hitY);
         hitZ = Math.abs(hitZ);
+        hitX = 1 - hitX;
         //hitX += 0.5F;
         //hitY += 0.5F;
         //hitZ += 0.5F;
