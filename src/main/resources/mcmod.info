@@ -1,0 +1,16 @@
+[
+{
+  "modid": "advancedblockplacement",
+  "name": "Advanced Block Placement",
+  "description": "Adds configurable advanced placement for blocks",
+  "version": "${version}",
+  "mcversion": "${mcversion}",
+  "url": "",
+  "updateUrl": "",
+  "authorList": ["its_meow"],
+  "credits": "its_meow: Programming",
+  "logoFile": "",
+  "screenshots": [],
+  "dependencies": []
+}
+]
