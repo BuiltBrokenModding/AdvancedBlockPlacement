@@ -30,7 +30,7 @@ public class AdvancedBlockPlacement
 
     // Functional Fields
 
-    @SidedProxy(clientSide = "com.builtbroken.advancedblockplacement.AdvancedBlockPlacementClient", serverSide = "com.builtbroken.advancedblockplacement.AdvancedBlockPlacement$ISidedProxy$DummyProxy")
+    @SidedProxy(clientSide = "com.builtbroken.advancedblockplacement.client.ClientProxy", serverSide = "com.builtbroken.advancedblockplacement.server.ServerProxy")
     public static ISidedProxy proxy;
 
     @EventHandler

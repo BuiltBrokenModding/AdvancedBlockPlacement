@@ -27,33 +27,50 @@ public class InputHandler
     @SubscribeEvent
     public static void input(InputEvent event)
     {
-        boolean isDown = Keyboard.isKeyDown(placement_toggle.getKeyCode());
+        final PlacementMode prevMode = mode;
+        final boolean isDown = Keyboard.isKeyDown(placement_toggle.getKeyCode());
+
+        //Are in toggle mode
         if (ConfigClient.is_keybind_toggle)
         {
+            //Only change on key down
             if (!wasDownLastTick && isDown)
             {
-                PlacementMode inverse = mode.isAdvanced() ? PlacementMode.NORMAL : PlacementMode.ADVANCED;
-                mode = inverse;
-                NetworkHandler.NETWORK_INSTANCE.sendToServer(new PacketSetMode(inverse));
-                Minecraft.getMinecraft().player.playSound(SoundEvents.UI_BUTTON_CLICK, 1F, 1F);
+                mode = mode.isAdvanced() ? PlacementMode.NORMAL : PlacementMode.ADVANCED;
             }
-
         }
         else if (isDown ^ wasDownLastTick)
         {
             if (isDown && !wasDownLastTick)
             {
                 mode = PlacementMode.ADVANCED;
-                NetworkHandler.NETWORK_INSTANCE.sendToServer(new PacketSetMode(PlacementMode.ADVANCED));
-                Minecraft.getMinecraft().player.playSound(SoundEvents.UI_BUTTON_CLICK, 1F, 1F);
+
             }
             else if (!isDown && wasDownLastTick)
             {
                 mode = PlacementMode.NORMAL;
-                NetworkHandler.NETWORK_INSTANCE.sendToServer(new PacketSetMode(PlacementMode.NORMAL));
-                Minecraft.getMinecraft().player.playSound(SoundEvents.UI_BUTTON_CLICK, 1F, 0.8F);
             }
         }
+
+        //Sync
+        if (mode != prevMode)
+        {
+            //Audio
+            if (mode.isAdvanced())
+            {
+                Minecraft.getMinecraft().player.playSound(SoundEvents.UI_BUTTON_CLICK, 1F, 1F);
+            }
+            else
+            {
+                Minecraft.getMinecraft().player.playSound(SoundEvents.UI_BUTTON_CLICK, 1F, 0.8F);
+            }
+
+            //Network
+            NetworkHandler.NETWORK_INSTANCE.sendToServer(new PacketSetMode(mode));
+        }
+
+        //Remember last position
         wasDownLastTick = isDown;
     }
+
 }
