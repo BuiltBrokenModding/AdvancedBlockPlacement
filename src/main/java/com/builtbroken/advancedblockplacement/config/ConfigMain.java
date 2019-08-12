@@ -22,14 +22,24 @@ import java.util.List;
 public class ConfigMain
 {
     @Config.Comment("A list of registry names of blocks to be affected by advanced placement")
-    public static String[] blocks_affected = new String[]{};
+    public static String[] blocks_affected = new String[]{
+            "minecraft:chest",
+            "minecraft:furnace",
+            "minecraft:dispenser",
+            "minecraft:hopper",
+            "minecraft:dropper",
+            "minecraft:piston",
+            "minecraft:sticky_piston"
+    };
 
     @Config.Comment("Setting to true will make all blocks affected by default but disallow those in the affected list")
     public static boolean is_blacklist = false;
 
+    @Config.Ignore
     public static boolean needsMapped = true;
 
     //Cache
+    @Config.Ignore
     private static List<Block> blockList;
 
     public static void mapCache()
