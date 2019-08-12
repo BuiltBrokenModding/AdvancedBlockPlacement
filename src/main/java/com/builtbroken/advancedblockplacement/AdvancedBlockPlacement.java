@@ -1,5 +1,6 @@
 package com.builtbroken.advancedblockplacement;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -40,7 +41,6 @@ import net.minecraftforge.fml.common.gameevent.TickEvent.WorldTickEvent;
 import net.minecraftforge.fml.common.network.NetworkRegistry;
 import net.minecraftforge.fml.common.network.simpleimpl.SimpleNetworkWrapper;
 import net.minecraftforge.fml.relauncher.Side;
-import scala.actors.threadpool.Arrays;
 
 @Mod.EventBusSubscriber(modid = AdvancedBlockPlacement.MODID)
 @Mod(modid = AdvancedBlockPlacement.MODID, name = AdvancedBlockPlacement.NAME, version = AdvancedBlockPlacement.VERSION, acceptableRemoteVersions = "*")
