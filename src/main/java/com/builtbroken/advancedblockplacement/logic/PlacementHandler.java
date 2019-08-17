@@ -66,15 +66,17 @@ public class PlacementHandler
                     if (ConfigMain.isAffected(event.getPlacedBlock().getBlock()))
                     {
                         //Ignore chest placement
-                        if (event.getPlacedBlock().getBlock() == Blocks.CHEST && isAdjacentBlock(Blocks.CHEST, event.getWorld(), event.getPos()))
+                        if (event.getPlacedBlock().getBlock() == Blocks.CHEST
+                                && isAdjacentBlock(Blocks.CHEST, event.getWorld(), event.getPos()))
                         {
                             return;
                         }
-                        if (event.getPlacedBlock().getBlock() == Blocks.TRAPPED_CHEST && isAdjacentBlock(Blocks.TRAPPED_CHEST, event.getWorld(), event.getPos()))
+                        if (event.getPlacedBlock().getBlock() == Blocks.TRAPPED_CHEST
+                                && isAdjacentBlock(Blocks.TRAPPED_CHEST, event.getWorld(), event.getPos()))
                         {
                             return;
                         }
-                        
+
                         //Get placement
                         final IBlockState newState = getNewState(event.getPlacedBlock(), rightClick.getFace(),
                                 (float) rightClick.getHitVec().x, (float) rightClick.getHitVec().y, (float) rightClick.getHitVec().z);

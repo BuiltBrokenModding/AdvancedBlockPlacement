@@ -3,6 +3,7 @@ package com.builtbroken.advancedblockplacement.client;
 import com.builtbroken.advancedblockplacement.AdvancedBlockPlacement;
 import com.builtbroken.advancedblockplacement.config.ConfigClient;
 import com.builtbroken.advancedblockplacement.config.ConfigMain;
+import com.builtbroken.advancedblockplacement.fakeworld.FakeWorld;
 import com.builtbroken.advancedblockplacement.logic.PlacementHandler;
 import net.minecraft.block.BlockDirectional;
 import net.minecraft.block.BlockHorizontal;
@@ -14,11 +15,13 @@ import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.renderer.RenderHelper;
 import net.minecraft.client.renderer.Tessellator;
 import net.minecraft.client.renderer.texture.TextureMap;
+import net.minecraft.client.renderer.tileentity.TileEntityRendererDispatcher;
 import net.minecraft.client.renderer.vertex.DefaultVertexFormats;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemBlock;
 import net.minecraft.item.ItemStack;
+import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumBlockRenderType;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.EnumHand;
@@ -38,6 +41,8 @@ import org.lwjgl.opengl.GL11;
 @Mod.EventBusSubscriber(modid = AdvancedBlockPlacement.MODID, value = Side.CLIENT)
 public class RenderHandler
 {
+    private static final FakeWorld fakeWorld = FakeWorld.newWorld("render");
+
     public static final ResourceLocation ARROW_TEXTURE = new ResourceLocation(AdvancedBlockPlacement.MODID, "textures/arrow.png");
 
     @SubscribeEvent
@@ -50,51 +55,94 @@ public class RenderHandler
 
             //Get position
             BlockPos pos = event.getTarget().getBlockPos();
-            pos = world.getBlockState(pos).getBlock().isReplaceable(world, pos) ? pos : pos.offset(event.getTarget().sideHit);
 
-            //Only render on solid blocks
-            if (!player.world.isAirBlock(event.getTarget().getBlockPos()))
+            if (!world.isOutsideBuildHeight(pos) && world.isBlockLoaded(pos))
             {
-                final ItemStack stack = event.getPlayer().getHeldItem(EnumHand.MAIN_HAND);
-                final Item item = stack.getItem();
-                if (item instanceof ItemBlock)
+                pos = world.getBlockState(pos).getBlock().isReplaceable(world, pos) ? pos : pos.offset(event.getTarget().sideHit);
+
+                //Only render on solid blocks
+                if (!player.world.isAirBlock(event.getTarget().getBlockPos()))
                 {
-                    final ItemBlock itemblock = (ItemBlock) item;
-                    if (ConfigMain.isAffected(itemblock.getBlock()))
+                    final ItemStack stack = event.getPlayer().getHeldItem(EnumHand.MAIN_HAND);
+                    final Item item = stack.getItem();
+                    if (item instanceof ItemBlock)
                     {
-                        final IBlockState defState = itemblock.getBlock().getDefaultState();
-                        try
+                        final ItemBlock itemblock = (ItemBlock) item;
+                        if (ConfigMain.isAffected(itemblock.getBlock()))
                         {
-                            //Get raytrace
-                            final Vec3d hit = event.getTarget().hitVec;
-
-                            //Get state
-                            IBlockState state = defState;
-                            if (defState.getPropertyKeys().contains(BlockDirectional.FACING) || defState.getPropertyKeys().contains(BlockHorizontal.FACING))
+                            final IBlockState defState = itemblock.getBlock().getDefaultState();
+                            try
                             {
-                                state = PlacementHandler.getNewState(defState, event.getTarget().sideHit, (float) hit.x, (float) hit.y, (float) hit.z);
+                                //Get raytrace
+                                final Vec3d hit = event.getTarget().hitVec;
+
+                                //Get state
+                                IBlockState blockState = defState;
+                                if (defState.getPropertyKeys().contains(BlockDirectional.FACING) || defState.getPropertyKeys().contains(BlockHorizontal.FACING))
+                                {
+                                    blockState = PlacementHandler.getNewState(defState, event.getTarget().sideHit, (float) hit.x, (float) hit.y, (float) hit.z);
+                                }
+
+                                //Get render offset
+                                final double renderX = player.lastTickPosX + (player.posX - player.lastTickPosX) * event.getPartialTicks();
+                                final double renderY = player.lastTickPosY + (player.posY - player.lastTickPosY) * event.getPartialTicks();
+                                final double renderZ = player.lastTickPosZ + (player.posZ - player.lastTickPosZ) * event.getPartialTicks();
+
+                                //Render arrow
+                                if (itemblock.getBlock().hasTileEntity(blockState) && blockState.getRenderType() == EnumBlockRenderType.ENTITYBLOCK_ANIMATED || ConfigClient.always_display_arrow)
+                                {
+                                    if (blockState.getRenderType() == EnumBlockRenderType.ENTITYBLOCK_ANIMATED)
+                                    {
+                                        try
+                                        {
+                                            final TileEntityRendererDispatcher rendererDispatcher = TileEntityRendererDispatcher.instance;
+
+                                            //Update world info
+                                            fakeWorld.actualWorld = world;
+
+                                            //Fake tile entity
+                                            final TileEntity tileEntity = itemblock.getBlock().createTileEntity(world, blockState);
+                                            tileEntity.setWorld(fakeWorld);
+                                            tileEntity.setPos(pos);
+
+                                            //Setup world
+                                            fakeWorld.setBlockState(pos, blockState);
+                                            fakeWorld.setTileEntity(pos, tileEntity);
+
+                                            //do render
+                                            GlStateManager.pushMatrix();
+                                            GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
+                                            RenderHelper.disableStandardItemLighting();
+                                            rendererDispatcher.render(tileEntity, -renderX + pos.getX(), -renderY + pos.getY(), -renderZ + pos.getZ(), 0);
+                                            RenderHelper.enableStandardItemLighting();
+                                            GlStateManager.popMatrix();
+
+
+                                        }
+                                        catch (Exception e)
+                                        {
+                                            AdvancedBlockPlacement.logger.warn("Problem rendering advanced placement for " + itemblock.getBlock().getRegistryName());
+                                        }
+                                        finally
+                                        {
+                                            //Clear world data
+                                            fakeWorld.setBlockState(pos, null);
+                                            fakeWorld.setTileEntity(pos, null);
+                                        }
+                                    }
+                                    //renderArrow(-renderX + pos.getX(), -renderY + pos.getY(), -renderZ + pos.getZ(), getDirection(state));
+                                }
+
+                                //Render block preview
+                                if (ConfigClient.do_block_preview)
+                                {
+                                    //renderBlock(world, pos, state, renderX, renderY, renderZ);
+                                }
                             }
-
-                            //Get render offset
-                            final double renderX = player.lastTickPosX + (player.posX - player.lastTickPosX) * event.getPartialTicks();
-                            final double renderY = player.lastTickPosY + (player.posY - player.lastTickPosY) * event.getPartialTicks();
-                            final double renderZ = player.lastTickPosZ + (player.posZ - player.lastTickPosZ) * event.getPartialTicks();
-
-                            //Render arrow
-                            if (itemblock.getBlock().hasTileEntity(state) && state.getRenderType() == EnumBlockRenderType.ENTITYBLOCK_ANIMATED || ConfigClient.always_display_arrow)
+                            catch (Exception e)
                             {
-                                renderArrow(-renderX + pos.getX(), -renderY + pos.getY(), -renderZ + pos.getZ(), getDirection(state));
+                                AdvancedBlockPlacement.logger.warn("Problem rendering advanced placement for " + itemblock.getBlock().getRegistryName());
                             }
-
-                            //Render block preview
-                            if (ConfigClient.do_block_preview)
-                            {
-                                renderBlock(world, pos, state, renderX, renderY, renderZ);
-                            }
-                        }
-                        catch (Exception e)
-                        {
-                            AdvancedBlockPlacement.logger.warn("Problem rendering advanced placement for " + itemblock.getBlock().getRegistryName());
                         }
                     }
                 }
@@ -102,7 +150,8 @@ public class RenderHandler
         }
     }
 
-    public static EnumFacing getDirection(IBlockState state) {
+    public static EnumFacing getDirection(IBlockState state)
+    {
         EnumFacing newFacing = null;
         if (state.getPropertyKeys().contains(BlockDirectional.FACING))
         {
@@ -119,21 +168,29 @@ public class RenderHandler
     {
         GlStateManager.pushMatrix();
         {
+            final BlockRendererDispatcher dispatcher = Minecraft.getMinecraft().getBlockRendererDispatcher();
+
+            //Bind texture
+            Minecraft.getMinecraft().getTextureManager().bindTexture(TextureMap.LOCATION_BLOCKS_TEXTURE);
+
+            //Position and scale
             GlStateManager.scale(0.95F, 0.95F, 0.95F);
             GlStateManager.translate(-renderX, -renderY + 0.08, -renderZ);
-            BlockRendererDispatcher dispatcher = Minecraft.getMinecraft().getBlockRendererDispatcher();
 
+            //Alpha
             RenderHelper.disableStandardItemLighting();
-
-            Minecraft.getMinecraft().getTextureManager().bindTexture(TextureMap.LOCATION_BLOCKS_TEXTURE);
             GlStateManager.enableBlend();
             GlStateManager.enableAlpha();
             GlStateManager.blendFunc(GlStateManager.SourceFactor.ONE, GlStateManager.DestFactor.ONE);
+
+            //Render block
             Tessellator tess = Tessellator.getInstance();
             BufferBuilder buffer = tess.getBuffer();
             buffer.begin(GL11.GL_QUADS, DefaultVertexFormats.BLOCK);
             dispatcher.renderBlock(state, pos, world, buffer);
             tess.draw();
+
+            //Reset
             RenderHelper.enableStandardItemLighting();
             GlStateManager.disableAlpha();
             GlStateManager.disableBlend();
