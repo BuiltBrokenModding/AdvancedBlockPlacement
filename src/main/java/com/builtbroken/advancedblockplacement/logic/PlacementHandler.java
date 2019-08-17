@@ -56,14 +56,16 @@ public class PlacementHandler
     {
         if (event.getEntity() instanceof EntityPlayer)
         {
-            EntityPlayer player = (EntityPlayer) event.getEntity();
-            if (ADVANCED_PLACEMENT_MAP.getOrDefault(player.getGameProfile().getId(), PlacementMode.NORMAL).isAdvanced() || true)
+            final EntityPlayer player = (EntityPlayer) event.getEntity();
+            if (ADVANCED_PLACEMENT_MAP.getOrDefault(player.getGameProfile().getId(), PlacementMode.NORMAL).isAdvanced())
             {
-                PlayerInteractEvent.RightClickBlock rightClick = LAST_RIGHTCLICK_EVENT.get(player.getGameProfile().getId());
+                final PlayerInteractEvent.RightClickBlock rightClick = LAST_RIGHTCLICK_EVENT.get(player.getGameProfile().getId());
                 if (rightClick != null && rightClick.getFace() != null && rightClick.getHitVec() != null)
                 {
+                    //Can we handle the block placement
                     if (ConfigMain.isAffected(event.getPlacedBlock().getBlock()))
                     {
+                        //Ignore chest placement
                         if (event.getPlacedBlock().getBlock() == Blocks.CHEST && isAdjacentBlock(Blocks.CHEST, event.getWorld(), event.getPos()))
                         {
                             return;
@@ -72,7 +74,10 @@ public class PlacementHandler
                         {
                             return;
                         }
-                        IBlockState newState = getNewState(event.getPlacedBlock(), rightClick.getFace(), (float) rightClick.getHitVec().x, (float) rightClick.getHitVec().y, (float) rightClick.getHitVec().z);
+                        
+                        //Get placement
+                        final IBlockState newState = getNewState(event.getPlacedBlock(), rightClick.getFace(),
+                                (float) rightClick.getHitVec().x, (float) rightClick.getHitVec().y, (float) rightClick.getHitVec().z);
                         if (newState != null)
                         {
                             int dim = event.getWorld().provider.getDimension();
@@ -120,16 +125,16 @@ public class PlacementHandler
 
     public static EnumFacing getPlacement(EnumFacing blockSide, float hitX, float hitY, float hitZ)
     {
+        //Changing to be a decimal 5.5 -> 0.5, data passed in is the raytrace
         hitX -= (int) hitX;
         hitY -= (int) hitY;
         hitZ -= (int) hitZ;
+
+        //From negative to positive
         hitX = Math.abs(hitX);
         hitY = Math.abs(hitY);
         hitZ = Math.abs(hitZ);
-        hitX = 1 - hitX;
-        //hitX += 0.5F;
-        //hitY += 0.5F;
-        //hitZ += 0.5F;
+
         final float spacing = 0.3f;
         EnumFacing placement;
 
