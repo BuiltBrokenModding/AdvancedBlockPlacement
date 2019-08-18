@@ -32,6 +32,9 @@ import java.util.UUID;
 @Mod.EventBusSubscriber(modid = AdvancedBlockPlacement.MODID)
 public class PlacementHandler
 {
+
+    public static final float DETECTION_EDGE_SIZE = 0.3f; //TODO make client-config
+
     public static final Map<UUID, PlacementMode> ADVANCED_PLACEMENT_MAP = new HashMap<UUID, PlacementMode>();
     public static final Map<UUID, PlayerInteractEvent.RightClickBlock> LAST_RIGHTCLICK_EVENT = new HashMap<UUID, PlayerInteractEvent.RightClickBlock>();
     public static final Map<Integer, Map<BlockPos, IBlockState>> FIX_NEXT_TICK = new HashMap<Integer, Map<BlockPos, IBlockState>>();
@@ -153,19 +156,18 @@ public class PlacementHandler
         hitY = Math.abs(hitY);
         hitZ = Math.abs(hitZ);
 
-        final float spacing = 0.3f;
         EnumFacing placement;
 
         if (blockSide == EnumFacing.UP || blockSide == EnumFacing.DOWN)
         {
             // WEST
-            boolean left = hitX <= spacing;
+            boolean left = hitX <= DETECTION_EDGE_SIZE;
             // EAST
-            boolean right = hitX >= (1 - spacing);
+            boolean right = hitX >= (1 - DETECTION_EDGE_SIZE);
             // NORTH
-            boolean up = hitZ <= spacing;
+            boolean up = hitZ <= DETECTION_EDGE_SIZE;
             // SOUTH
-            boolean down = hitZ >= (1 - spacing);
+            boolean down = hitZ >= (1 - DETECTION_EDGE_SIZE);
 
             if (!up && !down && (left || right))
             {
@@ -187,11 +189,11 @@ public class PlacementHandler
         else
         {
             boolean z = blockSide.getAxis() == EnumFacing.Axis.Z;
-            boolean left = (z ? hitX : hitZ) <= spacing;
-            boolean right = (z ? hitX : hitZ) >= (1 - spacing);
+            boolean left = (z ? hitX : hitZ) <= DETECTION_EDGE_SIZE;
+            boolean right = (z ? hitX : hitZ) >= (1 - DETECTION_EDGE_SIZE);
 
-            boolean down = hitY <= spacing;
-            boolean up = hitY >= (1 - spacing);
+            boolean down = hitY <= DETECTION_EDGE_SIZE;
+            boolean up = hitY >= (1 - DETECTION_EDGE_SIZE);
 
             if (!up && !down && (left || right))
             {

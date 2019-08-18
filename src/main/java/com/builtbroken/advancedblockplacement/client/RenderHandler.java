@@ -70,7 +70,7 @@ public class RenderHandler
             //Get position
             final BlockPos targetPos = event.getTarget().getBlockPos();
 
-            if(targetPos == null)
+            if (targetPos == null)
             {
                 return;
             }
@@ -89,7 +89,7 @@ public class RenderHandler
 
                     //Get block state for placement
                     IBlockState blockState = null;
-                    if(PlacementHandler.placementData.containsKey(item))
+                    if (PlacementHandler.placementData.containsKey(item))
                     {
                         blockState = PlacementHandler.placementData.get(item).placement.getExpectedPlacement(fakeWorld, pos, sideHit, sideHit);
                     }
@@ -99,21 +99,23 @@ public class RenderHandler
                         final Block block = itemBlock.getBlock();
                         final int meta = itemBlock.getMetadata(stack);
 
-                        if(!itemBlock.canPlaceBlockOnSide(fakeWorld, pos, sideHit, player, stack)
+                        if (!itemBlock.canPlaceBlockOnSide(fakeWorld, pos, sideHit, player, stack)
                                 || !block.canPlaceBlockAt(world, pos))
                         {
                             return;
                         }
 
-                        EntityZombie zombie = new EntityZombie(fakeWorld);
-                        zombie.setPosition(pos.getX(), pos.getY(), pos.getZ());
-                        blockState = block.getStateForPlacement(fakeWorld, pos, sideHit, (float)hitX, (float)hitY, (float)hitZ, meta, zombie, EnumHand.MAIN_HAND);
+                        EntityZombie zombie = new EntityZombie(fakeWorld); //TODO switch to fake player
+                        zombie.setPosition(pos.getX(), pos.getY(), pos.getZ()); //TODO offset to be in front of the expected side to fake rotation
+
+                        //Get actual placement
+                        blockState = block.getStateForPlacement(fakeWorld, pos, sideHit, (float) hitX, (float) hitY, (float) hitZ, meta, zombie, EnumHand.MAIN_HAND);
 
                         //Get rotation
                         if (blockState.getPropertyKeys().contains(BlockDirectional.FACING)
                                 || blockState.getPropertyKeys().contains(BlockHorizontal.FACING))
                         {
-                            blockState = PlacementHandler.getNewState(blockState, event.getTarget().sideHit, (float)hitX, (float)hitY, (float)hitZ);
+                            blockState = PlacementHandler.getNewState(blockState, event.getTarget().sideHit, (float) hitX, (float) hitY, (float) hitZ);
                         }
                     }
 
@@ -125,27 +127,36 @@ public class RenderHandler
                     }
 
                     //Make sure the block can be placed
-                    if(!blockState.getBlock().canPlaceBlockOnSide(world, pos, sideHit))
+                    if (!blockState.getBlock().canPlaceBlockOnSide(world, pos, sideHit))
                     {
                         return;
                     }
 
+                    //Set block into fake world
+                    fakeWorld.setBlockState(pos, blockState);
+
+                    //Get render offset
+                    final double renderX = player.lastTickPosX + (player.posX - player.lastTickPosX) * event.getPartialTicks();
+                    final double renderY = player.lastTickPosY + (player.posY - player.lastTickPosY) * event.getPartialTicks();
+                    final double renderZ = player.lastTickPosZ + (player.posZ - player.lastTickPosZ) * event.getPartialTicks();
+
+                    //BlockPos related to render space
+                    final double xx = -renderX + pos.getX();
+                    final double yy = -renderY + pos.getY();
+                    final double zz = -renderZ + pos.getZ();
+
                     try
                     {
-                        //Get render offset
-                        final double renderX = player.lastTickPosX + (player.posX - player.lastTickPosX) * event.getPartialTicks();
-                        final double renderY = player.lastTickPosY + (player.posY - player.lastTickPosY) * event.getPartialTicks();
-                        final double renderZ = player.lastTickPosZ + (player.posZ - player.lastTickPosZ) * event.getPartialTicks();
-
                         boolean hasRenderedArrow = false;
 
-                        //Set block into fake world
-                        fakeWorld.setBlockState(pos, blockState);
+                        //Render selection cubes
+                        final EnumFacing selectedSide = PlacementHandler.getPlacement(sideHit, (float) hitX, (float) hitY, (float) hitZ);
+                        renderSelectedSide(sideHit, selectedSide, xx, yy, zz);
 
                         //Render arrow
                         if (ConfigClient.always_display_arrow)
                         {
-                            renderArrow(-renderX + pos.getX(), -renderY + pos.getY(), -renderZ + pos.getZ(), getDirection(blockState));
+                            renderArrow(xx, yy, zz, getDirection(blockState));
                         }
                         //Render TileEntity
                         else if (renderTileEntity(blockState))
@@ -157,7 +168,7 @@ public class RenderHandler
                             }
                             if (!rendered)
                             {
-                                renderArrow(-renderX + pos.getX(), -renderY + pos.getY(), -renderZ + pos.getZ(), getDirection(blockState));
+                                renderArrow(xx, yy, zz, getDirection(blockState));
                                 hasRenderedArrow = true;
                             }
                             else
@@ -225,6 +236,126 @@ public class RenderHandler
             GlStateManager.enableTexture2D();
             GlStateManager.disableBlend();
         }
+    }
+
+    public static void renderSelectedSide(EnumFacing blockSide, EnumFacing selection, double xx, double yy, double zz)
+    {
+        final Minecraft mc = Minecraft.getMinecraft();
+        //Setup
+        GlStateManager.enableBlend();
+        GlStateManager.tryBlendFuncSeparate(GlStateManager.SourceFactor.SRC_ALPHA, GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA, GlStateManager.SourceFactor.ONE, GlStateManager.DestFactor.ZERO);
+        GlStateManager.glLineWidth(2.0F);
+        GlStateManager.disableTexture2D();
+        GlStateManager.depthMask(false);
+
+        final float size = PlacementHandler.DETECTION_EDGE_SIZE;
+
+
+        if (blockSide == EnumFacing.UP)
+        {
+            final double yh = yy + 0.05;
+            final double northMin = size;
+            final double northMax = 0;
+
+            final double southMin = (1 - size);
+            final double southMax = 1;
+
+            final double westMin = size;
+            final double westMax = 0;
+
+            final double eastMin = (1 - size);
+            final double eastMax = 1;
+
+            final int grey_r = 145;
+            final int grey_g = 145;
+            final int grey_b = 145;
+
+            final int selected_r = 255;
+            final int selected_g = 57;
+            final int selected_b = 11;
+
+
+            //CORNERS
+            //Render corner NW
+            mc.renderGlobal.renderFilledBox(
+                    xx + westMax, yy, zz + northMax,
+                    xx + westMin, yh, zz + northMin,
+                    selection == EnumFacing.DOWN ? selected_r : grey_r,
+                    selection == EnumFacing.DOWN ? selected_g : grey_g,
+                    selection == EnumFacing.DOWN ? selected_b : grey_b, 1);
+
+            //Render corner NE
+            mc.renderGlobal.renderFilledBox(
+                    xx + eastMin, yy, zz + northMax,
+                    xx + eastMax, yh, zz + northMin,
+                    selection == EnumFacing.DOWN ? selected_r : grey_r,
+                    selection == EnumFacing.DOWN ? selected_g : grey_g,
+                    selection == EnumFacing.DOWN ? selected_b : grey_b, 1);
+
+            //Render corner SW
+            mc.renderGlobal.renderFilledBox(
+                    xx + westMax, yy, zz + southMin,
+                    xx + westMin, yh, zz + southMax,
+                    selection == EnumFacing.DOWN ? selected_r : grey_r,
+                    selection == EnumFacing.DOWN ? selected_g : grey_g,
+                    selection == EnumFacing.DOWN ? selected_b : grey_b, 1);
+
+            //Render corner SE
+            mc.renderGlobal.renderFilledBox(
+                    xx + eastMin, yy, zz + southMin,
+                    xx + eastMax, yh, zz + southMax,
+                    selection == EnumFacing.DOWN ? selected_r : grey_r,
+                    selection == EnumFacing.DOWN ? selected_g : grey_g,
+                    selection == EnumFacing.DOWN ? selected_b : grey_b, 1);
+
+
+            //SIDES
+            //Render side N
+            mc.renderGlobal.renderFilledBox(
+                    xx + westMin, yy, zz + northMax,
+                    xx + eastMin, yh, zz + northMin,
+                    selection == EnumFacing.NORTH ? selected_r : grey_r,
+                    selection == EnumFacing.NORTH ? selected_g : grey_g,
+                    selection == EnumFacing.NORTH ? selected_b : grey_b, 1);
+
+            //Render side S
+            mc.renderGlobal.renderFilledBox(
+                    xx + westMin, yy, zz + southMin,
+                    xx + eastMin, yh, zz + southMax,
+                    selection == EnumFacing.SOUTH ? selected_r : grey_r,
+                    selection == EnumFacing.SOUTH ? selected_g : grey_g,
+                    selection == EnumFacing.SOUTH ? selected_b : grey_b, 1);
+
+            //Render side W
+            mc.renderGlobal.renderFilledBox(
+                    xx + westMax, yy, zz + northMin,
+                    xx + westMin, yh, zz + southMin,
+                    selection == EnumFacing.WEST ? selected_r : grey_r,
+                    selection == EnumFacing.WEST ? selected_g : grey_g,
+                    selection == EnumFacing.WEST ? selected_b : grey_b, 1);
+
+            //Render side E
+            mc.renderGlobal.renderFilledBox(
+                    xx + eastMin, yy, zz + northMin,
+                    xx + eastMax, yh, zz + southMin,
+                    selection == EnumFacing.EAST ? selected_r : grey_r,
+                    selection == EnumFacing.EAST ? selected_g : grey_g,
+                    selection == EnumFacing.EAST ? selected_b : grey_b, 1);
+
+            //CENTER
+            mc.renderGlobal.renderFilledBox(
+                    xx + westMin, yy, zz + northMin,
+                    xx + eastMin, yh, zz + southMin,
+                    selection == EnumFacing.UP ? selected_r : grey_r,
+                    selection == EnumFacing.UP ? selected_g : grey_g,
+                    selection == EnumFacing.UP ? selected_b : grey_b, 1);
+        }
+
+
+        //Cleanup
+        GlStateManager.depthMask(true);
+        GlStateManager.enableTexture2D();
+        GlStateManager.disableBlend();
     }
 
     public static boolean renderTileEntity(IBlockState blockState)
