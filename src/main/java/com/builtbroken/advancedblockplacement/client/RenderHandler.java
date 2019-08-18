@@ -14,6 +14,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.BlockRendererDispatcher;
 import net.minecraft.client.renderer.BufferBuilder;
 import net.minecraft.client.renderer.GlStateManager;
+import net.minecraft.client.renderer.RenderGlobal;
 import net.minecraft.client.renderer.RenderHelper;
 import net.minecraft.client.renderer.Tessellator;
 import net.minecraft.client.renderer.texture.TextureMap;
@@ -277,7 +278,7 @@ public class RenderHandler
 
             //CORNERS
             //Render corner NW
-            mc.renderGlobal.renderFilledBox(
+            RenderGlobal.renderFilledBox(
                     xx + westMax, yy, zz + northMax,
                     xx + westMin, yh, zz + northMin,
                     selection == EnumFacing.DOWN ? selected_r : grey_r,
@@ -285,7 +286,7 @@ public class RenderHandler
                     selection == EnumFacing.DOWN ? selected_b : grey_b, 1);
 
             //Render corner NE
-            mc.renderGlobal.renderFilledBox(
+            RenderGlobal.renderFilledBox(
                     xx + eastMin, yy, zz + northMax,
                     xx + eastMax, yh, zz + northMin,
                     selection == EnumFacing.DOWN ? selected_r : grey_r,
@@ -293,7 +294,7 @@ public class RenderHandler
                     selection == EnumFacing.DOWN ? selected_b : grey_b, 1);
 
             //Render corner SW
-            mc.renderGlobal.renderFilledBox(
+            RenderGlobal.renderFilledBox(
                     xx + westMax, yy, zz + southMin,
                     xx + westMin, yh, zz + southMax,
                     selection == EnumFacing.DOWN ? selected_r : grey_r,
@@ -301,17 +302,16 @@ public class RenderHandler
                     selection == EnumFacing.DOWN ? selected_b : grey_b, 1);
 
             //Render corner SE
-            mc.renderGlobal.renderFilledBox(
+            RenderGlobal.renderFilledBox(
                     xx + eastMin, yy, zz + southMin,
                     xx + eastMax, yh, zz + southMax,
                     selection == EnumFacing.DOWN ? selected_r : grey_r,
                     selection == EnumFacing.DOWN ? selected_g : grey_g,
                     selection == EnumFacing.DOWN ? selected_b : grey_b, 1);
 
-
             //SIDES
             //Render side N
-            mc.renderGlobal.renderFilledBox(
+            RenderGlobal.renderFilledBox(
                     xx + westMin, yy, zz + northMax,
                     xx + eastMin, yh, zz + northMin,
                     selection == EnumFacing.NORTH ? selected_r : grey_r,
@@ -319,7 +319,7 @@ public class RenderHandler
                     selection == EnumFacing.NORTH ? selected_b : grey_b, 1);
 
             //Render side S
-            mc.renderGlobal.renderFilledBox(
+            RenderGlobal.renderFilledBox(
                     xx + westMin, yy, zz + southMin,
                     xx + eastMin, yh, zz + southMax,
                     selection == EnumFacing.SOUTH ? selected_r : grey_r,
@@ -327,7 +327,7 @@ public class RenderHandler
                     selection == EnumFacing.SOUTH ? selected_b : grey_b, 1);
 
             //Render side W
-            mc.renderGlobal.renderFilledBox(
+            RenderGlobal.renderFilledBox(
                     xx + westMax, yy, zz + northMin,
                     xx + westMin, yh, zz + southMin,
                     selection == EnumFacing.WEST ? selected_r : grey_r,
@@ -335,7 +335,7 @@ public class RenderHandler
                     selection == EnumFacing.WEST ? selected_b : grey_b, 1);
 
             //Render side E
-            mc.renderGlobal.renderFilledBox(
+            RenderGlobal.renderFilledBox(
                     xx + eastMin, yy, zz + northMin,
                     xx + eastMax, yh, zz + southMin,
                     selection == EnumFacing.EAST ? selected_r : grey_r,
@@ -343,7 +343,7 @@ public class RenderHandler
                     selection == EnumFacing.EAST ? selected_b : grey_b, 1);
 
             //CENTER
-            mc.renderGlobal.renderFilledBox(
+            RenderGlobal.renderFilledBox(
                     xx + westMin, yy, zz + northMin,
                     xx + eastMin, yh, zz + southMin,
                     selection == EnumFacing.UP ? selected_r : grey_r,
