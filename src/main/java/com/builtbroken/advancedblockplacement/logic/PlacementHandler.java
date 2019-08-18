@@ -9,6 +9,8 @@ import net.minecraft.block.BlockHorizontal;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.init.Blocks;
+import net.minecraft.init.Items;
+import net.minecraft.item.Item;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
@@ -33,6 +35,20 @@ public class PlacementHandler
     public static final Map<UUID, PlacementMode> ADVANCED_PLACEMENT_MAP = new HashMap<UUID, PlacementMode>();
     public static final Map<UUID, PlayerInteractEvent.RightClickBlock> LAST_RIGHTCLICK_EVENT = new HashMap<UUID, PlayerInteractEvent.RightClickBlock>();
     public static final Map<Integer, Map<BlockPos, IBlockState>> FIX_NEXT_TICK = new HashMap<Integer, Map<BlockPos, IBlockState>>();
+
+    public static final Map<Item, PlacementData> placementData = new HashMap();
+
+    static
+    {
+        addCustomPlacementData(new PlacementData(Items.REDSTONE)
+                .setPlacement((world, pos, heading, side) -> Blocks.REDSTONE_WIRE.getActualState(Blocks.REDSTONE_WIRE.getDefaultState(), world, pos))
+        );
+    }
+
+    public static void addCustomPlacementData(PlacementData data)
+    {
+        placementData.put(data.item, data);
+    }
 
     @SubscribeEvent
     public static void onWorldTick(TickEvent.WorldTickEvent event)

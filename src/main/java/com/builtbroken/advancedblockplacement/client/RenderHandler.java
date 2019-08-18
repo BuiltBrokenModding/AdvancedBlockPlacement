@@ -5,6 +5,7 @@ import com.builtbroken.advancedblockplacement.config.ConfigClient;
 import com.builtbroken.advancedblockplacement.config.ConfigMain;
 import com.builtbroken.advancedblockplacement.fakeworld.FakeWorld;
 import com.builtbroken.advancedblockplacement.logic.PlacementHandler;
+import net.minecraft.block.Block;
 import net.minecraft.block.BlockDirectional;
 import net.minecraft.block.BlockHorizontal;
 import net.minecraft.block.material.Material;
@@ -18,6 +19,7 @@ import net.minecraft.client.renderer.Tessellator;
 import net.minecraft.client.renderer.texture.TextureMap;
 import net.minecraft.client.renderer.tileentity.TileEntityRendererDispatcher;
 import net.minecraft.client.renderer.vertex.DefaultVertexFormats;
+import net.minecraft.entity.monster.EntityZombie;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemBlock;
@@ -54,9 +56,24 @@ public class RenderHandler
         {
             final EntityPlayer player = Minecraft.getMinecraft().player;
             final World world = Minecraft.getMinecraft().player.world;
+            final Vec3d rayTraceHit = event.getTarget().hitVec;
+            final EnumFacing sideHit = event.getTarget().sideHit;
+
+            //Get hit vector for side, get decimal and convert to positive
+            final double hitX = Math.abs(rayTraceHit.x - Math.floor(rayTraceHit.x));
+            final double hitY = Math.abs(rayTraceHit.y - Math.floor(rayTraceHit.y));
+            final double hitZ = Math.abs(rayTraceHit.z - Math.floor(rayTraceHit.z));
+
+            //Update world info
+            fakeWorld.actualWorld = world;
 
             //Get position
             final BlockPos targetPos = event.getTarget().getBlockPos();
+
+            if(targetPos == null)
+            {
+                return;
+            }
 
             if (!world.isOutsideBuildHeight(targetPos) && world.isBlockLoaded(targetPos))
             {
@@ -69,87 +86,112 @@ public class RenderHandler
                 {
                     final ItemStack stack = event.getPlayer().getHeldItem(EnumHand.MAIN_HAND);
                     final Item item = stack.getItem();
-                    if (item instanceof ItemBlock)
+
+                    //Get block state for placement
+                    IBlockState blockState = null;
+                    if(PlacementHandler.placementData.containsKey(item))
                     {
-                        final ItemBlock itemblock = (ItemBlock) item;
-                        if (ConfigMain.isAffected(itemblock.getBlock()))
+                        blockState = PlacementHandler.placementData.get(item).placement.getExpectedPlacement(fakeWorld, pos, sideHit, sideHit);
+                    }
+                    else if (item instanceof ItemBlock)
+                    {
+                        final ItemBlock itemBlock = ((ItemBlock) item);
+                        final Block block = itemBlock.getBlock();
+                        final int meta = itemBlock.getMetadata(stack);
+
+                        if(!itemBlock.canPlaceBlockOnSide(fakeWorld, pos, sideHit, player, stack)
+                                || !block.canPlaceBlockAt(world, pos))
                         {
-                            final IBlockState defState = itemblock.getBlock().getDefaultState();
-                            try
+                            return;
+                        }
+
+                        EntityZombie zombie = new EntityZombie(fakeWorld);
+                        zombie.setPosition(pos.getX(), pos.getY(), pos.getZ());
+                        blockState = block.getStateForPlacement(fakeWorld, pos, sideHit, (float)hitX, (float)hitY, (float)hitZ, meta, zombie, EnumHand.MAIN_HAND);
+
+                        //Get rotation
+                        if (blockState.getPropertyKeys().contains(BlockDirectional.FACING)
+                                || blockState.getPropertyKeys().contains(BlockHorizontal.FACING))
+                        {
+                            blockState = PlacementHandler.getNewState(blockState, event.getTarget().sideHit, (float)hitX, (float)hitY, (float)hitZ);
+                        }
+                    }
+
+
+                    //Reject null and config check
+                    if (blockState == null || !ConfigMain.isAffected(blockState.getBlock()))
+                    {
+                        return;
+                    }
+
+                    //Make sure the block can be placed
+                    if(!blockState.getBlock().canPlaceBlockOnSide(world, pos, sideHit))
+                    {
+                        return;
+                    }
+
+                    try
+                    {
+                        //Get render offset
+                        final double renderX = player.lastTickPosX + (player.posX - player.lastTickPosX) * event.getPartialTicks();
+                        final double renderY = player.lastTickPosY + (player.posY - player.lastTickPosY) * event.getPartialTicks();
+                        final double renderZ = player.lastTickPosZ + (player.posZ - player.lastTickPosZ) * event.getPartialTicks();
+
+                        boolean hasRenderedArrow = false;
+
+                        //Set block into fake world
+                        fakeWorld.setBlockState(pos, blockState);
+
+                        //Render arrow
+                        if (ConfigClient.always_display_arrow)
+                        {
+                            renderArrow(-renderX + pos.getX(), -renderY + pos.getY(), -renderZ + pos.getZ(), getDirection(blockState));
+                        }
+                        //Render TileEntity
+                        else if (renderTileEntity(blockState))
+                        {
+                            boolean rendered = false;
+                            if (blockState.getRenderType() == EnumBlockRenderType.ENTITYBLOCK_ANIMATED)
                             {
-                                //Get raytrace
-                                final Vec3d hit = event.getTarget().hitVec;
-
-                                //Get state
-                                IBlockState blockState = defState;
-                                if (defState.getPropertyKeys().contains(BlockDirectional.FACING) || defState.getPropertyKeys().contains(BlockHorizontal.FACING))
-                                {
-                                    blockState = PlacementHandler.getNewState(defState, event.getTarget().sideHit, (float) hit.x, (float) hit.y, (float) hit.z);
-                                }
-
-                                //Get render offset
-                                final double renderX = player.lastTickPosX + (player.posX - player.lastTickPosX) * event.getPartialTicks();
-                                final double renderY = player.lastTickPosY + (player.posY - player.lastTickPosY) * event.getPartialTicks();
-                                final double renderZ = player.lastTickPosZ + (player.posZ - player.lastTickPosZ) * event.getPartialTicks();
-
-                                boolean hasRenderedArrow = false;
-
-                                //Update world info
-                                fakeWorld.actualWorld = world;
-                                fakeWorld.setBlockState(pos, blockState);
-
-                                //Render arrow
-                                if (ConfigClient.always_display_arrow)
-                                {
-                                    renderArrow(-renderX + pos.getX(), -renderY + pos.getY(), -renderZ + pos.getZ(), getDirection(blockState));
-                                }
-                                //Render TileEntity
-                                else if (renderTileEntity(blockState))
-                                {
-                                    boolean rendered = false;
-                                    if (blockState.getRenderType() == EnumBlockRenderType.ENTITYBLOCK_ANIMATED)
-                                    {
-                                        rendered = renderTile(world, pos, blockState, renderX, renderY, renderZ);
-                                    }
-                                    if (!rendered)
-                                    {
-                                        renderArrow(-renderX + pos.getX(), -renderY + pos.getY(), -renderZ + pos.getZ(), getDirection(blockState));
-                                        hasRenderedArrow = true;
-                                    }
-                                    else
-                                    {
-                                        drawSelectionBox(fakeWorld, pos, renderX, renderY, renderZ);
-                                    }
-                                }
-                                //Render block preview
-                                else if (ConfigClient.do_block_preview)
-                                {
-                                    renderBlock(world, pos, blockState, renderX, renderY, renderZ);
-                                }
-
-                                //Render facing arrow to help with visualization on flat looking blocks
-                                if (!hasRenderedArrow)
-                                {
-                                    final EnumFacing facing = getDirection(blockState);
-                                    if (facing != null)
-                                    {
-                                        double x = -renderX + pos.getX() + facing.getXOffset();
-                                        double y = -renderY + pos.getY() + facing.getYOffset();
-                                        double z = -renderZ + pos.getZ() + facing.getZOffset();
-                                        renderArrow(x, y, z, facing);
-                                    }
-                                }
+                                rendered = renderTile(world, pos, blockState, renderX, renderY, renderZ);
                             }
-                            catch (Exception e)
+                            if (!rendered)
                             {
-                                AdvancedBlockPlacement.logger.error("Problem rendering advanced placement for " + itemblock.getBlock().getRegistryName(), e);
+                                renderArrow(-renderX + pos.getX(), -renderY + pos.getY(), -renderZ + pos.getZ(), getDirection(blockState));
+                                hasRenderedArrow = true;
                             }
-                            finally
+                            else
                             {
-                                //Clear fake world settings
-                                fakeWorld.setBlockState(pos, null);
+                                drawSelectionBox(fakeWorld, pos, renderX, renderY, renderZ);
                             }
                         }
+                        //Render block preview
+                        else if (ConfigClient.do_block_preview)
+                        {
+                            renderBlock(world, pos, blockState, renderX, renderY, renderZ);
+                        }
+
+                        //Render facing arrow to help with visualization on flat looking blocks
+                        if (!hasRenderedArrow)
+                        {
+                            final EnumFacing facing = getDirection(blockState);
+                            if (facing != null)
+                            {
+                                double x = -renderX + pos.getX() + facing.getXOffset();
+                                double y = -renderY + pos.getY() + facing.getYOffset();
+                                double z = -renderZ + pos.getZ() + facing.getZOffset();
+                                renderArrow(x, y, z, facing);
+                            }
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        AdvancedBlockPlacement.logger.error("Problem rendering advanced placement for " + item, e);
+                    }
+                    finally
+                    {
+                        //Clear fake world settings
+                        fakeWorld.setBlockState(pos, null);
                     }
                 }
             }
@@ -210,7 +252,6 @@ public class RenderHandler
         try
         {
             final TileEntityRendererDispatcher rendererDispatcher = TileEntityRendererDispatcher.instance;
-
 
 
             //Fake tile entity
