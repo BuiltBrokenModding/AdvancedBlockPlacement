@@ -7,6 +7,7 @@ import com.builtbroken.advancedblockplacement.fakeworld.FakeWorld;
 import com.builtbroken.advancedblockplacement.logic.PlacementHandler;
 import net.minecraft.block.BlockDirectional;
 import net.minecraft.block.BlockHorizontal;
+import net.minecraft.block.material.Material;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.BlockRendererDispatcher;
@@ -26,6 +27,7 @@ import net.minecraft.util.EnumBlockRenderType;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.EnumHand;
 import net.minecraft.util.ResourceLocation;
+import net.minecraft.util.math.AxisAlignedBB;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
@@ -54,11 +56,13 @@ public class RenderHandler
             final World world = Minecraft.getMinecraft().player.world;
 
             //Get position
-            BlockPos pos = event.getTarget().getBlockPos();
+            final BlockPos targetPos = event.getTarget().getBlockPos();
 
-            if (!world.isOutsideBuildHeight(pos) && world.isBlockLoaded(pos))
+            if (!world.isOutsideBuildHeight(targetPos) && world.isBlockLoaded(targetPos))
             {
-                pos = world.getBlockState(pos).getBlock().isReplaceable(world, pos) ? pos : pos.offset(event.getTarget().sideHit);
+                final BlockPos pos = world.getBlockState(targetPos).getBlock().isReplaceable(world, targetPos)
+                        ? targetPos
+                        : targetPos.offset(event.getTarget().sideHit);
 
                 //Only render on solid blocks
                 if (!player.world.isAirBlock(event.getTarget().getBlockPos()))
@@ -88,60 +92,62 @@ public class RenderHandler
                                 final double renderY = player.lastTickPosY + (player.posY - player.lastTickPosY) * event.getPartialTicks();
                                 final double renderZ = player.lastTickPosZ + (player.posZ - player.lastTickPosZ) * event.getPartialTicks();
 
+                                boolean hasRenderedArrow = false;
+
+                                //Update world info
+                                fakeWorld.actualWorld = world;
+                                fakeWorld.setBlockState(pos, blockState);
+
                                 //Render arrow
-                                if (itemblock.getBlock().hasTileEntity(blockState) && blockState.getRenderType() == EnumBlockRenderType.ENTITYBLOCK_ANIMATED || ConfigClient.always_display_arrow)
+                                if (ConfigClient.always_display_arrow)
                                 {
+                                    renderArrow(-renderX + pos.getX(), -renderY + pos.getY(), -renderZ + pos.getZ(), getDirection(blockState));
+                                }
+                                //Render TileEntity
+                                else if (renderTileEntity(blockState))
+                                {
+                                    boolean rendered = false;
                                     if (blockState.getRenderType() == EnumBlockRenderType.ENTITYBLOCK_ANIMATED)
                                     {
-                                        try
-                                        {
-                                            final TileEntityRendererDispatcher rendererDispatcher = TileEntityRendererDispatcher.instance;
-
-                                            //Update world info
-                                            fakeWorld.actualWorld = world;
-
-                                            //Fake tile entity
-                                            final TileEntity tileEntity = itemblock.getBlock().createTileEntity(world, blockState);
-                                            tileEntity.setWorld(fakeWorld);
-                                            tileEntity.setPos(pos);
-
-                                            //Setup world
-                                            fakeWorld.setBlockState(pos, blockState);
-                                            fakeWorld.setTileEntity(pos, tileEntity);
-
-                                            //do render
-                                            GlStateManager.pushMatrix();
-                                            GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
-                                            RenderHelper.disableStandardItemLighting();
-                                            rendererDispatcher.render(tileEntity, -renderX + pos.getX(), -renderY + pos.getY(), -renderZ + pos.getZ(), 0);
-                                            RenderHelper.enableStandardItemLighting();
-                                            GlStateManager.popMatrix();
-
-
-                                        }
-                                        catch (Exception e)
-                                        {
-                                            AdvancedBlockPlacement.logger.warn("Problem rendering advanced placement for " + itemblock.getBlock().getRegistryName());
-                                        }
-                                        finally
-                                        {
-                                            //Clear world data
-                                            fakeWorld.setBlockState(pos, null);
-                                            fakeWorld.setTileEntity(pos, null);
-                                        }
+                                        rendered = renderTile(world, pos, blockState, renderX, renderY, renderZ);
                                     }
-                                    //renderArrow(-renderX + pos.getX(), -renderY + pos.getY(), -renderZ + pos.getZ(), getDirection(state));
+                                    if (!rendered)
+                                    {
+                                        renderArrow(-renderX + pos.getX(), -renderY + pos.getY(), -renderZ + pos.getZ(), getDirection(blockState));
+                                        hasRenderedArrow = true;
+                                    }
+                                    else
+                                    {
+                                        drawSelectionBox(fakeWorld, pos, renderX, renderY, renderZ);
+                                    }
+                                }
+                                //Render block preview
+                                else if (ConfigClient.do_block_preview)
+                                {
+                                    renderBlock(world, pos, blockState, renderX, renderY, renderZ);
                                 }
 
-                                //Render block preview
-                                if (ConfigClient.do_block_preview)
+                                //Render facing arrow to help with visualization on flat looking blocks
+                                if (!hasRenderedArrow)
                                 {
-                                    //renderBlock(world, pos, state, renderX, renderY, renderZ);
+                                    final EnumFacing facing = getDirection(blockState);
+                                    if (facing != null)
+                                    {
+                                        double x = -renderX + pos.getX() + facing.getXOffset();
+                                        double y = -renderY + pos.getY() + facing.getYOffset();
+                                        double z = -renderZ + pos.getZ() + facing.getZOffset();
+                                        renderArrow(x, y, z, facing);
+                                    }
                                 }
                             }
                             catch (Exception e)
                             {
-                                AdvancedBlockPlacement.logger.warn("Problem rendering advanced placement for " + itemblock.getBlock().getRegistryName());
+                                AdvancedBlockPlacement.logger.error("Problem rendering advanced placement for " + itemblock.getBlock().getRegistryName(), e);
+                            }
+                            finally
+                            {
+                                //Clear fake world settings
+                                fakeWorld.setBlockState(pos, null);
                             }
                         }
                     }
@@ -150,18 +156,99 @@ public class RenderHandler
         }
     }
 
+    public static void drawSelectionBox(World world, BlockPos pos, double renderX, double renderY, double renderZ)
+    {
+        final Minecraft mc = Minecraft.getMinecraft();
+        final IBlockState iblockstate = world.getBlockState(pos);
+        if (iblockstate.getMaterial() != Material.AIR && world.getWorldBorder().contains(pos))
+        {
+            //Setup
+            GlStateManager.enableBlend();
+            GlStateManager.tryBlendFuncSeparate(GlStateManager.SourceFactor.SRC_ALPHA, GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA, GlStateManager.SourceFactor.ONE, GlStateManager.DestFactor.ZERO);
+            GlStateManager.glLineWidth(2.0F);
+            GlStateManager.disableTexture2D();
+            GlStateManager.depthMask(false);
+
+            //Get selection bounds
+            AxisAlignedBB bb = iblockstate.getSelectedBoundingBox(world, pos)
+                    .grow(0.0020000000949949026D)
+                    .offset(-renderX, -renderY, -renderZ);
+
+            //Render
+            mc.renderGlobal.drawSelectionBoundingBox(bb, 0.0F, 0.0F, 0.0F, 0.4F);
+
+
+            //Cleanup
+            GlStateManager.depthMask(true);
+            GlStateManager.enableTexture2D();
+            GlStateManager.disableBlend();
+        }
+    }
+
+    public static boolean renderTileEntity(IBlockState blockState)
+    {
+        return blockState.getBlock().hasTileEntity(blockState)
+                && blockState.getRenderType() == EnumBlockRenderType.ENTITYBLOCK_ANIMATED;
+    }
+
     public static EnumFacing getDirection(IBlockState state)
     {
-        EnumFacing newFacing = null;
         if (state.getPropertyKeys().contains(BlockDirectional.FACING))
         {
-            newFacing = state.getValue(BlockDirectional.FACING);
+            return state.getValue(BlockDirectional.FACING);
         }
         else if (state.getPropertyKeys().contains(BlockHorizontal.FACING))
         {
-            newFacing = state.getValue(BlockHorizontal.FACING);
+            return state.getValue(BlockHorizontal.FACING);
         }
-        return newFacing;
+        return null;
+    }
+
+    public static boolean renderTile(World world, BlockPos pos, IBlockState blockState, double renderX, double renderY, double renderZ)
+    {
+        GlStateManager.pushMatrix();
+        try
+        {
+            final TileEntityRendererDispatcher rendererDispatcher = TileEntityRendererDispatcher.instance;
+
+
+
+            //Fake tile entity
+            final TileEntity tileEntity = blockState.getBlock().createTileEntity(world, blockState);
+            tileEntity.setWorld(fakeWorld);
+            tileEntity.setPos(pos);
+
+            //Setup world
+            fakeWorld.setTileEntity(pos, tileEntity);
+
+            //Setup
+            GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
+            //RenderHelper.disableStandardItemLighting();
+            //GlStateManager.enableBlend();
+            //GlStateManager.enableAlpha();
+            //GlStateManager.blendFunc(GlStateManager.SourceFactor.ONE, GlStateManager.DestFactor.ONE);
+            //GlStateManager.depthMask(false);
+
+            //do render
+            rendererDispatcher.render(tileEntity, -renderX + pos.getX(), -renderY + pos.getY(), -renderZ + pos.getZ(), 0);
+
+            //Clean up
+            //GlStateManager.depthMask(true);
+            //RenderHelper.enableStandardItemLighting();
+            //GlStateManager.disableAlpha();
+            //GlStateManager.disableBlend();
+        }
+        catch (Exception e)
+        {
+            AdvancedBlockPlacement.logger.warn("Problem rendering advanced placement for " + blockState);
+        }
+        finally
+        {
+            //Clear world data
+            fakeWorld.setTileEntity(pos, null);
+        }
+        GlStateManager.popMatrix();
+        return true;
     }
 
     public static void renderBlock(World world, BlockPos pos, IBlockState state, double renderX, double renderY, double renderZ)
@@ -182,6 +269,7 @@ public class RenderHandler
             GlStateManager.enableBlend();
             GlStateManager.enableAlpha();
             GlStateManager.blendFunc(GlStateManager.SourceFactor.ONE, GlStateManager.DestFactor.ONE);
+            GlStateManager.depthMask(false);
 
             //Render block
             Tessellator tess = Tessellator.getInstance();
@@ -191,6 +279,7 @@ public class RenderHandler
             tess.draw();
 
             //Reset
+            GlStateManager.depthMask(true);
             RenderHelper.enableStandardItemLighting();
             GlStateManager.disableAlpha();
             GlStateManager.disableBlend();
@@ -204,8 +293,11 @@ public class RenderHandler
         {
             GlStateManager.pushMatrix();
             {
+                //Setup
+                GlStateManager.enableBlend();
+                GlStateManager.enableAlpha();
                 GlStateManager.blendFunc(GlStateManager.SourceFactor.SRC_ALPHA, GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA);
-                GlStateManager.depthMask(false);
+                //GlStateManager.depthMask(false);
 
                 //Offset
                 GlStateManager.translate(x, y, z);
@@ -245,7 +337,10 @@ public class RenderHandler
 
                 t.draw();
 
-                GlStateManager.depthMask(true);
+                //Cleanup
+                GlStateManager.disableAlpha();
+                GlStateManager.disableBlend();
+                //GlStateManager.depthMask(true);
             }
             GlStateManager.popMatrix();
         }
